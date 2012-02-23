@@ -10,21 +10,62 @@
  * */
 
 var yoFramework = {
-    Initializer:function () {
-        window._initializer_ = this;
-        this.constructor = function () {
+    readyTargets:[],
+    resizeTargets:{},
+    available:false,
+    ready:function (target) {
+        if (yoFramework.available) {
             try {
-                eval("_initializer_.target.onDeviceReady()");
-            } catch (e) {
-                navigator.notification.alert(e);
+                target();
+            } catch (ex) {
+                reportError(ex);
             }
-        };
-
-        this.initializePackage = function (targetPackage) {
-            _initializer_.target = targetPackage;
-            document.addEventListener("deviceready", _initializer_.constructor, true);
-            resizeMonitor.start();
-        };
+        } else {
+            yoFramework.readyTargets.push(target);
+        }
+    },
+    addOnResizeListener:function (id, handler) {
+        if (yoFramework.available) {
+            try {
+                resizeMonitor.addListener(id, handler);
+            } catch (ex) {
+                reportError(ex);
+            }
+        } else {
+            yoFramework.resizeTargets[id] = handler;
+        }
+    },
+    removeOnResizeListener:function (id) {
+        resizeMonitor.removeListener(id);
+    },
+    executeReadyTargets:function () {
+        for (var idx in yoFramework.readyTargets) {
+            try {
+                yoFramework.readyTargets[idx]();
+            } catch (ex) {
+                reportError(ex);
+            }
+        }
+    },
+    executeResizeTargets:function () {
+        for (var idx in yoFramework.resizeTargets) {
+            try {
+                resizeMonitor.addListener(idx, yoFramework.resizeTargets[idx]);
+            } catch (ex) {
+                reportError(ex);
+            }
+        }
+    },
+    onDeviceReady:function () {
+        yoFramework.executeReadyTargets();
+        yoFramework.executeResizeTargets();
+    },
+    reportError:function (error) {
+        try {
+            alert(error);
+            console.log(error);
+        } catch (e) {
+        }
     },
     ScreenAreaProvider:function () {
         var browser = new Object();
@@ -88,24 +129,22 @@ var yoFramework = {
         },
         start:function () {
             resizeMonitor.previousSize = resizeMonitor.cloneDimensions(resizeMonitor.screenAreaProvider.findCurrentWindowSize().availableScreenSize);
+            resizeMonitor.monitor();
             setInterval("resizeMonitor.monitor()", 50);
             return resizeMonitor;
         }
     },
-    display:function (HTMLMarkup) {
-        document.getElementsByTagName('body')[0].innerHTML += HTMLMarkup;
-    },
-    Browser:function () {
-        this.provider = "yoFramework";
-        this.display = yoFramework.display;
-    },
     init:function () {
-        Initializer = yoFramework.Initializer;
-        ScreenAreaProvider = yoFramework.ScreenAreaProvider;
-        resizeMonitor = yoFramework.resizeMonitor;
-        resizeMonitor.screenAreaProvider = new ScreenAreaProvider();
         yo = yoFramework;
-        browser = new yoFramework.Browser();
+        window.onload = function () {
+            window.reportError = yoFramework.reportError;
+            window.ScreenAreaProvider = yoFramework.ScreenAreaProvider;
+            window.resizeMonitor = yoFramework.resizeMonitor;
+            resizeMonitor.screenAreaProvider = new ScreenAreaProvider();
+            resizeMonitor.start();
+            yoFramework.available = true;
+            document.addEventListener("deviceready", yoFramework.onDeviceReady, false);
+        }
     }
 };
 yoFramework.init();
