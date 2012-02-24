@@ -11,11 +11,58 @@
  *
  * Contains json2.js for JSON handling
  * */
+//Array.each
+//obj.each
+//JSON.parse / stringify
+//AjaxObject
+//Domain class
+
 
 var yoFramework = {
     readyTargets:[],
     resizeTargets:{},
+    domainTargets:{},
+    config:{
+        db:{
+            mode:'update'
+        }
+    },
+    storage:{
+        appCache:null,
+        appCacheType:"N/A"
+    },
     available:false,
+    curry:function (fn, scope) {
+        var args = [];
+        for (var i = 2, len = arguments.length; i < len; ++i) {
+            args.push(arguments[i]);
+        }
+        if (typeof(fn) != 'function') {
+            return function () {
+            }
+        }
+        return function () {
+            fn.apply(scope, args);
+        };
+    },
+    iterators:{
+        eachImpl:function (handler) {
+            if (this instanceof Array || this instanceof NodeList) {
+                for (var i = 0; i < this.length; i++) {
+                    yoFramework.curry(handler, this[i], i)();
+                }
+            } else if (this instanceof Object) {
+                for (var key in this) {
+                    if (key in ['each']) break;
+                    yoFramework.curry(handler, {key:key, val:this[key]}, key, this[key])();
+                }
+            }
+        },
+        bind:function () {
+            Array.prototype.each = yoFramework.iterators.eachImpl;
+            Object.prototype.each = yoFramework.iterators.eachImpl;
+        }
+    },
     ready:function (target) {
         if (yoFramework.available) {
             try {
@@ -25,6 +72,19 @@ var yoFramework = {
             }
         } else {
             yoFramework.readyTargets.push(target);
+        }
+    },
+    domain:function (domainDescription) {
+        var name = domainDescription.name;
+        var model = domainDescription.model;
+        if (yoFramework.available) {
+            try {
+                new yoFramework.DomainClass(name, model);
+            } catch (ex) {
+                reportError(ex);
+            }
+        } else {
+            yoFramework.domainTargets[name] = model;
         }
     },
     addOnResizeListener:function (id, handler) {
@@ -42,31 +102,41 @@ var yoFramework = {
         resizeMonitor.removeListener(id);
     },
     executeReadyTargets:function () {
-        for (var idx in yoFramework.readyTargets) {
+        yoFramework.readyTargets.each(function () {
             try {
-                yoFramework.readyTargets[idx]();
+                this();
             } catch (ex) {
                 reportError(ex);
             }
-        }
+        });
     },
     executeResizeTargets:function () {
-        for (var idx in yoFramework.resizeTargets) {
+        yoFramework.resizeTargets.each(function () {
             try {
-                resizeMonitor.addListener(idx, yoFramework.resizeTargets[idx]);
+                resizeMonitor.addListener(this.key, this.val);
             } catch (ex) {
                 reportError(ex);
             }
-        }
+        });
+    },
+    executeDomainTargets:function () {
+        yoFramework.domainTargets.each(function () {
+            try {
+                new yoFramework.DomainClass(this.key, this.val);
+            } catch (ex) {
+                reportError(ex);
+            }
+        });
     },
     onDeviceReady:function () {
         yoFramework.available = true;
+        yoFramework.executeDomainTargets();
         yoFramework.executeReadyTargets();
         yoFramework.executeResizeTargets();
     },
     reportError:function (error) {
         try {
-            alert(error);
+            alert("Error:: " + error);
             console.log(error);
         } catch (e) {
         }
@@ -121,7 +191,7 @@ var yoFramework = {
                 try {
                     resizeMonitor.handlers[key](height, width, _orientation);
                 } catch (ex) {
-                    navigator.notification.alert(ex);
+                    reportError(ex);
                 }
             }
         },
@@ -330,14 +400,187 @@ var yoFramework = {
         }
         yoFramework.json2ImplImport();
     },
+    loadConfigFile:function () {
+        try {
+            document.getElementsByTagName('meta').each(function () {
+                if (this.hasAttribute('name') && this.getAttribute('name').toString().search(/yo/) == 0) {
+                    eval(this.getAttribute('name').toString() + "= '" + this.getAttribute('content').toString() + "';")
+                }
+            });
+        } catch (ex) {
+            reportError(ex);
+        }
+    },
+    AjaxObject:function (url, callbackFunction) {
+        var obj = this;
+        this.async = true;
+        this.updating = false;
+        this.abort = function () {
+            if (obj.updating) {
+                obj.updating = false;
+                obj.AJAX.abort();
+                obj.AJAX = null;
+            }
+        };
+        this.update = function (passData, postMethod) {
+            if (obj.updating) {
+                return false;
+            }
+            obj.AJAX = null;
+            if (window.XMLHttpRequest) {
+                obj.AJAX = new XMLHttpRequest();
+            } else {
+                obj.AJAX = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+            if (obj.AJAX == null) {
+                return false;
+            } else {
+                obj.AJAX.onreadystatechange = function () {
+                    if (obj.AJAX.readyState == 4) {
+                        obj.updating = false;
+                        obj.callback(obj.AJAX.responseText, obj.AJAX.status, obj.AJAX.responseXML);
+                        obj.AJAX = null;
+                    }
+                };
+                obj.updating = new Date();
+                if (/post/i.test(postMethod)) {
+                    var uri = urlCall + '?' + obj.updating.getTime();
+                    obj.AJAX.open("POST", uri, obj.async);
+                    obj.AJAX.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+                    obj.AJAX.setRequestHeader("Content-Length", passData.length);
+                    obj.AJAX.send(passData);
+                } else {
+                    var uri = urlCall + '?' + passData + '&timestamp=' + (obj.updating.getTime());
+                    obj.AJAX.open("GET", uri, obj.async);
+                    obj.AJAX.send(null);
+                }
+                return true;
+            }
+        };
+        var urlCall = url;
+        this.callback = callbackFunction || function () {
+        };
+    },
+    initializeOfflineStorageSystem:function () {
+        yoFramework.supportsOfflineStorage = false;
+        try {
+            if (window.applicationCache) {
+                yoFramework.storage = {
+                    appCache:window.applicationCache,
+                    appCacheType:"window.applicationCache"
+                };
+                yoFramework.supportsOfflineStorage = true;
+            } else if (!yoFramework.supportsOfflineStorage && Modernizr.applicationcache) {
+                yoFramework.supportsOfflineStorage = true;
+                yoFramework.storage = {
+                    appCache:Modernizr.applicationcache,
+                    appCacheType:"Modernizr.applicationcache"
+                };
+            }
+        } catch (c) {
+            reportError(c);
+        }
+    },
+    DomainToDBBridge:function (context) {
+        var obj = this;
+        this.dropDatabase = function () {
+            alert('drop: ' + context.name);
+            //todo implement
+        };
+        this.createDatabase = function () {
+            alert('create: ' + context.name);
+            //todo implement
+        };
+        this.databaseExists = function () {
+            //todo implement
+            return false;
+        };
+        this.getRecordById = function (id) {
+            //todo implement
+            return null;
+        };
+        this.getRecordCount = function () {
+            //todo implement
+            return 0;
+        };
+        this.listRecords = function () {
+            //todo implement
+            return [];
+        };
+        this.deleteRecord = function (record) {
+            //todo implement
+            return {};
+        };
+        this.saveRecord = function (record) {
+            //todo implement
+            return {};
+        };
+        this.findByMapCriteria = function (criteria) {
+            //todo implement
+            return {};
+        };
+        this.findByLogicCriteria = function (logicFunction) {
+            //todo implement
+            return {};
+        };
+        this.findAllByMapCriteria = function (criteria) {
+            //todo implement
+            return {};
+        };
+        this.findAllByLogicCriteria = function (logicFunction) {
+            //todo implement
+            return {};
+        };
+    },
+    DomainClass:function (name, model) {
+        var obj = this;
+        this.name = name;
+        this.model = model;
+        this.bridge = new yoFramework.DomainToDBBridge(this);
+        window[name] = this;
+        if (yoFramework.config.db.mode == 'create') this.bridge.dropDatabase();
+        if (!this.bridge.databaseExists()) this.bridge.createDatabase();
+        this.get = function (id) {
+            obj.bridge.getRecordById(id);
+        };
+        this.count = function () {
+            obj.bridge.getRecordCount();
+        };
+        this.list = function () {
+            obj.bridge.listRecords();
+        };
+        this.del = function (record) {
+            obj.bridge.deleteRecord(record);
+        };
+        this.save = function (record) {
+            obj.bridge.saveRecord(record);
+        };
+        this.find = function (criteria) {
+            if (typeof(criteria) == 'function') {
+                obj.bridge.findByLogicCriteria(criteria);
+            } else if (criteria instanceof Object) {
+                obj.bridge.findByMapCriteria(criteria);
+            }
+        };
+        this.findAll = function (criteria) {
+            if (typeof(criteria) == 'function') {
+                obj.bridge.findAllByLogicCriteria(criteria);
+            } else if (criteria instanceof Object) {
+                obj.bridge.findAllByMapCriteria(criteria);
+            }
+        };
+    },
     init:function () {
         yo = yoFramework;
+        yoFramework.iterators.bind();
         window.onload = function () {
             window.reportError = yoFramework.reportError;
             window.ScreenAreaProvider = yoFramework.ScreenAreaProvider;
             window.resizeMonitor = yoFramework.resizeMonitor;
             resizeMonitor.screenAreaProvider = new ScreenAreaProvider();
+            yoFramework.loadConfigFile();
             yoFramework.json2();
+            yoFramework.initializeOfflineStorageSystem();
             resizeMonitor.start();
             document.addEventListener("deviceready", yoFramework.onDeviceReady, false);
         }
