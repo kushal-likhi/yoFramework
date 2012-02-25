@@ -483,6 +483,8 @@ var yoFramework = {
     },
     DomainToDBBridge:function (context) {
         var obj = this;
+        var getRecordCount = function(){};
+        var setRecordCount = function(c){};
         this.dropDatabase = function () {
             alert('drop: ' + context.name);
             //todo implement
