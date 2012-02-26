@@ -19,8 +19,8 @@
 // yo.hasValue
 // logger
 //Offline Storage API
-//Proposed assert
-//Proposed console
+// assert
+// console
 
 
 var yoFramework = {
@@ -35,7 +35,8 @@ var yoFramework = {
             logLevel:'debug',
             alertLevel:'error',
             template:"#{level}: #{date} - #{message}"
-        }
+        },
+        console:false
     },
     storage:{
         appCache:null,
@@ -128,12 +129,35 @@ var yoFramework = {
                     break;
             }
         };
+        var getLogColor = function (level) {
+            switch (level) {
+                case 'trace':
+                    return 'aqua';
+                    break;
+                case 'debug':
+                    return 'blue';
+                    break;
+                case 'info':
+                    return 'lime';
+                    break;
+                case 'warn':
+                    return '#FFCC00';
+                    break;
+                case 'error':
+                    return '#ff6600';
+                    break;
+                case 'fatal':
+                    return 'red';
+                    break;
+            }
+        };
         var renderedTemplate = function (message, level, date) {
             return yoFramework.config.logger.template.replace('#{message}', message).replace('#{level}', level).replace('#{date}', date);
         };
         var logIt = function (message, level) {
             message = renderedTemplate(message, level, new Date());
             console.log(message);
+            yoFramework.console.log(message, getLogColor(level.toString().toLowerCase()));
         };
         var alertIt = function (message, level) {
             alert(renderedTemplate(message, level, new Date()));
@@ -162,6 +186,17 @@ var yoFramework = {
             if (getLevelInt('fatal') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'FATAL');
             if (getLevelInt('fatal') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'FATAL');
         };
+    },
+    assert:function (what, assertCondition) {
+        if (!yoFramework.hasValue(assertCondition)) {
+            if (!yoFramework.hasValue(what)) {
+                throw "ASSERTION FAILURE: " + what + " does not exist.";
+            }
+        } else {
+            if (what != assertCondition) {
+                throw "ASSERTION FAILURE: " + what + " do not matches " + assertCondition;
+            }
+        }
     },
     ready:function (target) {
         if (yoFramework.available) {
@@ -505,7 +540,11 @@ var yoFramework = {
         try {
             document.getElementsByTagName('meta').each(function () {
                 if (this.hasAttribute('name') && this.getAttribute('name').toString().search(/yo/) == 0) {
-                    eval(this.getAttribute('name').toString() + "= '" + this.getAttribute('content').toString() + "';")
+                    if (this.getAttribute('content').toString() == 'true' || this.getAttribute('content').toString() == 'false') {
+                        eval(this.getAttribute('name').toString() + "= " + this.getAttribute('content').toString() + ";")
+                    } else {
+                        eval(this.getAttribute('name').toString() + "= '" + this.getAttribute('content').toString() + "';")
+                    }
                 }
             });
         } catch (ex) {
@@ -580,6 +619,231 @@ var yoFramework = {
     },
     hasValue:function (tmp) {
         return !(typeof(tmp) == 'undefined' || tmp == null);
+    },
+    console:{
+        ui:{
+            buildUI:function () {
+                var size = new yoFramework.ScreenAreaProvider().findCurrentWindowSize().availableScreenSize;
+                var console = yoFramework.hasValue(document.getElementById("osecta")) ? document.getElementById("osecta") : document.createElement("div");
+                console.style.fontSize = "12px";
+                console.style.fontWeight = "bold";
+                console.style.color = "#fff";
+                console.style.backgroundColor = "#000";
+                console.style.padding = "0px";
+                console.style.margin = "0px";
+                console.style.position = "fixed";
+                console.style.zIndex = 999;
+                console.style.overflowY = "scroll";
+                console.style.width = "100%";
+                console.style.height = "28%";
+                console.style.left = "0px";
+                console.style.top = "66%";
+                console.readOnly = true;
+                console.id = "osecta";
+                if (!yoFramework.hasValue(document.getElementById("osecta"))) document.getElementsByTagName("body").item(0).appendChild(console);
+                console = yoFramework.hasValue(document.getElementById("osehbc")) ? document.getElementById("osehbc") : document.createElement("div");
+                console.style.fontSize = "12px";
+                console.style.fontWeight = "bold";
+                console.style.color = "#fff";
+                console.style.backgroundColor = "#666";
+                console.style.padding = "0px";
+                console.style.margin = "0px";
+                console.style.position = "fixed";
+                console.style.zIndex = 999;
+                console.style.width = "100%";
+                console.style.left = "0px";
+                console.style.height = "6%";
+                console.style.top = "60%";
+                console.id = "osehbc";
+                console.innerHTML = "<h4 style='padding:0px;margin:0px' align='center'>yoFramework Console</h4>";
+                if (!yoFramework.hasValue(document.getElementById("osehbc")))document.getElementsByTagName("body").item(0).appendChild(console);
+                console = yoFramework.hasValue(document.getElementById("osecin")) ? document.getElementById("osecin") : document.createElement("input");
+                console.style.fontSize = "12px";
+                console.style.fontWeight = "bold";
+                console.style.color = "#fff";
+                console.style.backgroundColor = "#000";
+                console.style.padding = "0px";
+                console.style.margin = "0px";
+                console.style.position = "fixed";
+                console.style.zIndex = 999;
+                console.style.width = size.width - 100 + "px";
+                console.style.left = "100px";
+                console.style.height = "6%";
+                console.style.top = "94%";
+                console.id = "osecin";
+                if (!yoFramework.hasValue(document.getElementById("osecin"))) document.getElementsByTagName("body").item(0).appendChild(console);
+                console = yoFramework.hasValue(document.getElementById("ccmdsp")) ? document.getElementById("ccmdsp") : document.createElement("input");
+                console.style.fontSize = "12px";
+                console.style.fontWeight = "bold";
+                console.style.color = "#fff";
+                console.style.backgroundColor = "#000";
+                console.style.padding = "0px";
+                console.style.margin = "opx";
+                console.style.position = "fixed";
+                console.style.zIndex = 999;
+                console.style.width = "100px";
+                console.style.left = "0px";
+                console.style.height = "6%";
+                console.style.top = "94%";
+                console.readOnly = true;
+                console.value = "Command ->";
+                console.id = "ccmdsp";
+                if (!yoFramework.hasValue(document.getElementById("ccmdsp")))document.getElementsByTagName("body").item(0).appendChild(console);
+            }
+        },
+        eventHandlers:{
+            consoleShowHide:function () {
+                if (yoFramework.console.expanded) {
+                    document.getElementById("ccmdsp").style.display = "none";
+                    document.getElementById("osecin").style.display = "none";
+                    document.getElementById("osecta").style.display = "none";
+                    document.getElementById("osehbc").style.top = "94%";
+                    yoFramework.console.expanded = false;
+                } else {
+                    document.getElementById("ccmdsp").style.display = "block";
+                    document.getElementById("osecin").style.display = "block";
+                    document.getElementById("osecta").style.display = "block";
+                    document.getElementById("osehbc").style.top = "60%";
+                    yoFramework.console.expanded = true;
+                }
+            },
+            executeCommand:function (e) {
+                if (e.keyCode == 13) {
+                    var scr = document.getElementById("osecin").value;
+                    yoFramework.console.stack.push(scr);
+                    yoFramework.console.currentIndex = yoFramework.console.stack.length;
+                    yoFramework.console.log(scr, "green");
+                    document.getElementById("osecin").value = "";
+                    try {
+                        var cmm = new String(scr).split(' ');
+                        switch (cmm[0]) {
+                            case "echo":
+                                try {
+                                    eval("yoFramework.console.log(" + cmm[1] + ",'yellow')");
+                                } catch (c) {
+                                    yoFramework.console.log("Invalid argument", "red")
+                                    for (arg in c) {
+                                        yoFramework.console.log(arg + " : " + c[arg], "red");
+                                    }
+                                }
+                                break;
+                            case "clear":
+                                document.getElementById("osecta").innerHTML = "";
+                                yoFramework.console.log("OSE Console Cleared");
+                                break;
+                            case "export":
+                                eval("ex." + cmm[1] + " = " + cmm[2]);
+                                break;
+                            case "alias":
+                                eval("a." + cmm[1] + " = " + cmm[2]);
+                                break;
+                            case "edit":
+                                eval("yoFramework.console.getFunc(" + cmm[1] + ")");
+                                yoFramework.console.launchEditor(a.evalOSD1234, cmm[1]);
+                                break;
+                            case "prop-f":
+                                eval("var o = " + cmm[1] + ";for (att in o) {yoFramework.console.log('<span style=color:yellow>' + att + ' </span>  ' + o[att],'blue')};yoFramework.console.log('Legend: <span style=color:yellow>Yellow = Property</span> And <span style=color:blue>Blue = Value</span>')");
+                                break;
+                            case "prop":
+                                eval("var o = " + cmm[1] + ";for (att in o) {d = new String(o[att]).trim();if(d.substr(0,8) == 'function'){d = '[function]'};yoFramework.console.log('<span style=color:yellow>' + att + ' </span>  ' + d,'blue')};yoFramework.console.log('Legend: <span style=color:yellow>Yellow = Property</span> And <span style=color:blue>Blue = Value</span>')");
+                                break;
+                            case "help":
+                                yoFramework.console.log("<div style='width:100%;background-color:#333'><h1 align='center'>Console Help</h1><h2 align='center'>&copy;Kushal Likhi</h2></div>Following Commands Are Available:<br><br>1) <b style=color:yellow>echo &lt;parameter&gt; :</b> <span style=color:blue>Echoes the value of the parameter passed.</span><br>2) <b style=color:yellow>clear :</b> <span style=color:blue>Clears the console screen.</span><br>3) <b style=color:yellow>alias &lt;alias name&gt; &lt;reference&gt; :</b> <span style=color:blue>Creates a shorthand reference to the delegate for easy use. reference can be made to any entity ex.Object, function, string etc. To refer this alias you can type a.&lt;alias name&gt;</span><br>4) <b style=color:yellow>export &lt;variable name&gt; &lt;value&gt; :</b> <span style=color:blue>Exports the variable for future use. reference can be made to any entity ex.Object, function, string etc. To refer this alias you can type e.&lt;variable name&gt;</span><br>5) <b style=color:yellow>prop &lt;object&gt; or prop-f(displays function definition too):</b> <span style=color:blue>List all properties of object.</span><br>6) <b style=color:yellow>edit &lt;function&gt; :</b> <span style=color:blue>Launches editor for editing function.</span><br>7) <b style=color:yellow>size &lt;size&gt; :</b> <span style=color:blue>Changes the console font size.</span><br>8) <b style=color:yellow>help :</b> <span style=color:blue>Launches help.</span><br><br><div style='width:100%;background-color:#333'>End Of Help</div>");
+                                break;
+                            case "size":
+                                document.getElementById("osecta").style.fontSize = cmm[1] + "px";
+                                document.getElementById("osecin").style.fontSize = cmm[1] + "px";
+                                break;
+                            case "yo":
+                                yoFramework.console.log("YO! :-)", "yellow");
+                                break;
+                            default:
+                                eval(scr);
+                                break;
+                        }
+
+                    } catch (c) {
+                        yoFramework.console.log("Error Executing Command, see manual for details", "red");
+                        for (arg in c) {
+                            yoFramework.console.log(arg + " : " + c[arg], "red");
+                        }
+                    }
+                }
+                if (e.keyCode == 38) {
+                    if (yoFramework.console.currentIndex > 0) {
+                        document.getElementById("osecin").value = yoFramework.console.stack[yoFramework.console.currentIndex - 1];
+                        yoFramework.console.currentIndex--;
+                    }
+                }
+                if (e.keyCode == 40) {
+                    if (yoFramework.console.currentIndex < yoFramework.console.stack.length) {
+                        yoFramework.console.currentIndex++;
+                        document.getElementById("osecin").value = yoFramework.console.stack[yoFramework.console.currentIndex - 1];
+                    }
+                }
+            }
+        },
+        a:{},
+        ex:{},
+        closeEditor:function () {
+            document.getElementsByTagName("body")[0].removeChild(document.getElementById("osedit"));
+        },
+        getFunc:function (f) {
+            a.evalOSD1234 = "" + f;
+        },
+        launchEditor:function (delegate, id) {
+            var el = document.createElement("div");
+            el.style.background = "#fff";
+            el.style.position = "fixed";
+            el.style.zIndex = 1000;
+            el.style.width = "70%";
+            el.style.height = "70%";
+            el.style.top = "15%";
+            el.style.left = "15%";
+            el.id = "osedit";
+            el.innerHTML = "<textarea id='ostaed' style='width:100%;height:90%;background:#ffc'></textarea><br><button onclick=\"yoFramework.console.updateFunc('" + id + "')\">Update</button><button onclick='yoFramework.console.closeEditor()'>Close</button>";
+            document.getElementsByTagName("body")[0].appendChild(el);
+            var el2 = document.getElementById("ostaed");
+            if (!el2) {
+                yoFramework.console.log("not Found")
+            }
+            el2.innerHTML = el2.innerHTML + delegate;
+        },
+        log:function (text, col) {
+            try {
+                text = "$(" + new Date().getHours() + ":" + new Date().getMinutes() + ":" + new Date().getSeconds() + ")> <span style='color:" + col + "'>" + text + "</span>";
+                var con = document.getElementById("osecta");
+                con.innerHTML = con.innerHTML + text + "<br>";
+                con.scrollTop = con.scrollHeight;
+            } catch (e) {
+                log.trace("Tried to access console Log, but console was disabled")
+            }
+        },
+        stack:[],
+        updateFunc:function (id) {
+            var v = document.getElementById('ostaed').value;
+            v = id + " = " + v;
+            eval(v);
+            yoFramework.console.closeEditor();
+        },
+        init:function () {
+            alert("here");
+            if (yoFramework.config.console) {
+                try {
+                    alert("dddd true");
+                    window.a = yoFramework.console.a;
+                    window.ex = yoFramework.console.ex;
+                    yoFramework.console.ui.buildUI();
+                    yoFramework.console.expanded = true;
+                    yoFramework.console.currentIndex = yoFramework.console.stack.length;
+                    resizeMonitor.addListener('console', yoFramework.console.ui.buildUI);
+                    document.getElementById("osehbc").onclick = yoFramework.console.eventHandlers.consoleShowHide;
+                    document.getElementById("osecin").onkeydown = yoFramework.console.eventHandlers.executeCommand;
+                } catch (c) {
+                    reportError(c);
+                }
+            }
+        }
     },
     DomainToDBBridge:function (context) {
         var obj = this;
@@ -811,12 +1075,14 @@ var yoFramework = {
         yo = yoFramework;
         yoFramework.iterators.bind();
         window.onload = function () {
+            yoFramework.loadConfigFile();
             window.log = new yoFramework.Logger();
+            window.assert = yoFramework.assert;
             window.reportError = yoFramework.reportError;
             window.ScreenAreaProvider = yoFramework.ScreenAreaProvider;
             window.resizeMonitor = yoFramework.resizeMonitor;
             resizeMonitor.screenAreaProvider = new ScreenAreaProvider();
-            yoFramework.loadConfigFile();
+            yoFramework.console.init();
             yoFramework.json2();
             yoFramework.initializeOfflineStorageSystem();
             resizeMonitor.start();
