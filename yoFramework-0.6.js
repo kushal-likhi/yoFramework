@@ -827,10 +827,8 @@ var yoFramework = {
             yoFramework.console.closeEditor();
         },
         init:function () {
-            alert("here");
             if (yoFramework.config.console) {
                 try {
-                    alert("dddd true");
                     window.a = yoFramework.console.a;
                     window.ex = yoFramework.console.ex;
                     yoFramework.console.ui.buildUI();
