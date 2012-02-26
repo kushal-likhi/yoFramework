@@ -16,6 +16,11 @@
 //JSON.parse / stringify
 //AjaxObject
 //Domain class
+// yo.hasValue
+// logger
+//Offline Storage API
+//Proposed assert
+//Proposed console
 
 
 var yoFramework = {
@@ -25,11 +30,48 @@ var yoFramework = {
     config:{
         db:{
             mode:'update'
+        },
+        logger:{
+            logLevel:'debug',
+            alertLevel:'error',
+            template:"#{level}: #{date} - #{message}"
         }
     },
     storage:{
         appCache:null,
-        appCacheType:"N/A"
+        appCacheType:"N/A",
+        add:function (key, val) {
+            localStorage.setItem(key, val);
+        },
+        fetch:function (key) {
+            return localStorage.getItem(key);
+        },
+        addInQueue:function (val) {
+            var queueIndex = parseInt(yoFramework.storage.fetch("queueCount"));
+            yoFramework.storage.add("queueItem" + queueIndex, val);
+            queueIndex++;
+            yoFramework.storage.add("queueCount", queueIndex);
+        },
+        fetchQueue:function () {
+            var queueIndex = parseInt(yoFramework.storage.fetch("queueCount"));
+            var arr = new Array();
+            for (i = 0; i < queueIndex; i++) {
+                arr[i] = yoFramework.storage.fetch("queueItem" + i);
+            }
+            return arr;
+        },
+        removeItem:function (key) {
+            localStorage.removeItem(key);
+        },
+        removeQueueItem:function (index) {
+            yoFramework.storage.removeItem("queueItem" + index);
+        },
+        emptyQueue:function () {
+            yoFramework.storage.add("queueCount", "0");
+        },
+        queueSize:function () {
+            return parseInt(yoFramework.storage.fetch("queueCount"))
+        }
     },
     available:false,
     curry:function (fn, scope) {
@@ -42,7 +84,7 @@ var yoFramework = {
             }
         }
         return function () {
-            fn.apply(scope, args);
+            return fn.apply(scope, args);
         };
     },
     iterators:{
@@ -62,6 +104,64 @@ var yoFramework = {
             Array.prototype.each = yoFramework.iterators.eachImpl;
             Object.prototype.each = yoFramework.iterators.eachImpl;
         }
+    },
+    Logger:function () {
+        var getLevelInt = function (level) {
+            switch (level) {
+                case 'trace':
+                    return 10;
+                    break;
+                case 'debug':
+                    return 20;
+                    break;
+                case 'info':
+                    return 30;
+                    break;
+                case 'warn':
+                    return 40;
+                    break;
+                case 'error':
+                    return 50;
+                    break;
+                case 'fatal':
+                    return 60;
+                    break;
+            }
+        };
+        var renderedTemplate = function (message, level, date) {
+            return yoFramework.config.logger.template.replace('#{message}', message).replace('#{level}', level).replace('#{date}', date);
+        };
+        var logIt = function (message, level) {
+            message = renderedTemplate(message, level, new Date());
+            console.log(message);
+        };
+        var alertIt = function (message, level) {
+            alert(renderedTemplate(message, level, new Date()));
+        };
+        this.trace = function (message) {
+            if (getLevelInt('trace') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'TRACE');
+            if (getLevelInt('trace') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'TRACE');
+        };
+        this.debug = function (message) {
+            if (getLevelInt('debug') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'DEBUG');
+            if (getLevelInt('debug') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'DEBUG');
+        };
+        this.info = function (message) {
+            if (getLevelInt('info') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'INFO');
+            if (getLevelInt('info') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'INFO');
+        };
+        this.warn = function (message) {
+            if (getLevelInt('warn') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'WARN');
+            if (getLevelInt('warn') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'WARN');
+        };
+        this.error = function (message) {
+            if (getLevelInt('error') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'ERROR');
+            if (getLevelInt('error') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'ERROR');
+        };
+        this.fatal = function (message) {
+            if (getLevelInt('fatal') >= getLevelInt(yoFramework.config.logger.logLevel)) logIt(message, 'FATAL');
+            if (getLevelInt('fatal') >= getLevelInt(yoFramework.config.logger.alertLevel)) alertIt(message, 'FATAL');
+        };
     },
     ready:function (target) {
         if (yoFramework.available) {
@@ -136,8 +236,7 @@ var yoFramework = {
     },
     reportError:function (error) {
         try {
-            alert("Error:: " + error);
-            console.log(error);
+            log.error(error);
         } catch (e) {
         }
     },
@@ -187,13 +286,15 @@ var yoFramework = {
             resizeMonitor.previousSize = resizeMonitor.cloneDimensions(resizeMonitor.newSize);
         },
         executeHandlers:function (height, width) {
-            for (var key in resizeMonitor.handlers) {
-                try {
-                    resizeMonitor.handlers[key](height, width, _orientation);
-                } catch (ex) {
-                    reportError(ex);
+            yoFramework.resizeMonitor.handlers.each(function () {
+                if (yoFramework.hasValue(this.val)) {
+                    try {
+                        this.val(height, width, _orientation);
+                    } catch (ex) {
+                        reportError(ex);
+                    }
                 }
-            }
+            });
         },
         cloneDimensions:function (obj) {
             return {
@@ -465,73 +566,186 @@ var yoFramework = {
         yoFramework.supportsOfflineStorage = false;
         try {
             if (window.applicationCache) {
-                yoFramework.storage = {
-                    appCache:window.applicationCache,
-                    appCacheType:"window.applicationCache"
-                };
+                yoFramework.storage.appCache = window.applicationCache;
+                yoFramework.storage.appCacheType = "window.applicationCache";
                 yoFramework.supportsOfflineStorage = true;
             } else if (!yoFramework.supportsOfflineStorage && Modernizr.applicationcache) {
                 yoFramework.supportsOfflineStorage = true;
-                yoFramework.storage = {
-                    appCache:Modernizr.applicationcache,
-                    appCacheType:"Modernizr.applicationcache"
-                };
+                yoFramework.storage.appCache = Modernizr.applicationcache;
+                yoFramework.storage.appCacheType = "Modernizr.applicationcache";
             }
         } catch (c) {
             reportError(c);
         }
     },
+    hasValue:function (tmp) {
+        return !(typeof(tmp) == 'undefined' || tmp == null);
+    },
     DomainToDBBridge:function (context) {
         var obj = this;
-        var getRecordCount = function(){};
-        var setRecordCount = function(c){};
+        var getRecordCount = function () {
+            return parseInt(yoFramework.storage.fetch(context.name + "Count"));
+        };
+        var setRecordCount = function (c) {
+            yoFramework.storage.add(context.name + "Count", "" + c);
+        };
+        var getLastId = function () {
+            return parseInt(yoFramework.storage.fetch(context.name + "LastId"));
+        };
+        var setLastId = function (c) {
+            yoFramework.storage.add(context.name + "LastId", "" + c);
+        };
+        var setModel = function (c) {
+            yoFramework.storage.add(context.name + "Model", "" + JSON.stringify(c));
+        };
+        var getModel = function () {
+            return JSON.parse(yoFramework.storage.fetch(context.name + "Model"));
+        };
+        var delIds = null;
+        var updateDelIds = function () {
+            delIds = [];
+            for (var i = 1; i <= getLastId(); i++) {
+                if (!yoFramework.hasValue(yoFramework.storage.fetch(context.name + i))) {
+                    delIds.push(i);
+                }
+            }
+        };
         this.dropDatabase = function () {
-            alert('drop: ' + context.name);
-            //todo implement
+            for (var i = 0; i <= getRecordCount(); i++) {
+                yoFramework.storage.removeItem(context.name + i);
+            }
+            yoFramework.storage.removeItem(context.name + "Count");
+            yoFramework.storage.removeItem(context.name + "LastId");
+            yoFramework.storage.removeItem(context.name + "Model");
         };
         this.createDatabase = function () {
-            alert('create: ' + context.name);
-            //todo implement
+            setRecordCount(0);
+            setLastId(0);
+            setModel(context.model);
         };
         this.databaseExists = function () {
-            //todo implement
-            return false;
+            return yoFramework.hasValue(yoFramework.storage.fetch(context.name + "Model"));
         };
         this.getRecordById = function (id) {
-            //todo implement
-            return null;
+            var record = yoFramework.storage.fetch(context.name + id);
+            if (yoFramework.hasValue(record)) {
+                record = JSON.parse(record);
+            }
+            return record;
         };
         this.getRecordCount = function () {
-            //todo implement
-            return 0;
+            return getRecordCount();
         };
         this.listRecords = function () {
-            //todo implement
-            return [];
+            var records = [];
+            for (var i = 1; i <= getLastId(); i++) {
+                var record = yoFramework.storage.fetch(context.name + i);
+                if (yoFramework.hasValue(record)) {
+                    records.push(JSON.parse(record));
+                }
+            }
+            return records;
         };
         this.deleteRecord = function (record) {
-            //todo implement
-            return {};
+            if (!yoFramework.hasValue(delIds)) updateDelIds();
+            var recordD = yoFramework.storage.fetch(context.name + record.id);
+            if (yoFramework.hasValue(recordD)) {
+                recordD = JSON.parse(recordD);
+                yoFramework.storage.removeItem(context.name + record.id);
+                setRecordCount(getRecordCount() - 1);
+                delIds.push(record.id);
+                if (getLastId() == record.id) setLastId(getLastId() - 1);
+            }
+            return recordD;
         };
         this.saveRecord = function (record) {
-            //todo implement
-            return {};
+            if (!yoFramework.hasValue(delIds)) updateDelIds();
+            var newRecord = false;
+            if (!yoFramework.hasValue(record.id)) {
+                if (delIds.length > 0) {
+                    record.id = delIds.pop();
+                } else {
+                    record.id = getLastId() + 1;
+                }
+                newRecord = true;
+            }
+            if (!yoFramework.hasValue(yoFramework.storage.fetch(context.name + record.id))) {
+                newRecord = true;
+            }
+            try {
+                yoFramework.storage.add(context.name + record.id, JSON.stringify(record));
+                if (newRecord) {
+                    if (record.id > getLastId()) {
+                        setLastId(record.id);
+                    }
+                    setRecordCount(getRecordCount() + 1);
+                }
+            } catch (e) {
+                reportError(e);
+            }
+            return record;
         };
         this.findByMapCriteria = function (criteria) {
-            //todo implement
-            return {};
+            for (var i = 1; i <= getLastId(); i++) {
+                var record = yoFramework.storage.fetch(context.name + i);
+                if (yoFramework.hasValue(record)) {
+                    record = JSON.parse(record);
+                    var flag = true;
+                    criteria.each(function () {
+                        if (record[this.key] != this.val) {
+                            flag = false;
+                        }
+                    });
+                    if (flag) {
+                        return record;
+                    }
+                }
+            }
+            return null;
         };
         this.findByLogicCriteria = function (logicFunction) {
-            //todo implement
-            return {};
+            for (var i = 1; i <= getLastId(); i++) {
+                var record = yoFramework.storage.fetch(context.name + i);
+                if (yoFramework.hasValue(record)) {
+                    record = JSON.parse(record);
+                    if (yoFramework.curry(logicFunction, record)()) {
+                        return record;
+                    }
+                }
+            }
+            return null;
         };
         this.findAllByMapCriteria = function (criteria) {
-            //todo implement
-            return {};
+            var records = [];
+            for (var i = 1; i <= getLastId(); i++) {
+                var record = yoFramework.storage.fetch(context.name + i);
+                if (yoFramework.hasValue(record)) {
+                    record = JSON.parse(record);
+                    var flag = true;
+                    criteria.each(function () {
+                        if (record[this.key] != this.val) {
+                            flag = false;
+                        }
+                    });
+                    if (flag) {
+                        records.push(record);
+                    }
+                }
+            }
+            return records;
         };
         this.findAllByLogicCriteria = function (logicFunction) {
-            //todo implement
-            return {};
+            var records = [];
+            for (var i = 1; i <= getLastId(); i++) {
+                var record = yoFramework.storage.fetch(context.name + i);
+                if (yoFramework.hasValue(record)) {
+                    record = JSON.parse(record);
+                    if (yoFramework.curry(logicFunction, record)()) {
+                        records.push(record);
+                    }
+                }
+            }
+            return records;
         };
     },
     DomainClass:function (name, model) {
@@ -543,39 +757,61 @@ var yoFramework = {
         if (yoFramework.config.db.mode == 'create') this.bridge.dropDatabase();
         if (!this.bridge.databaseExists()) this.bridge.createDatabase();
         this.get = function (id) {
-            obj.bridge.getRecordById(id);
+            return obj.bridge.getRecordById(id);
         };
         this.count = function () {
-            obj.bridge.getRecordCount();
+            return obj.bridge.getRecordCount();
         };
         this.list = function () {
-            obj.bridge.listRecords();
+            return obj.bridge.listRecords();
         };
         this.del = function (record) {
-            obj.bridge.deleteRecord(record);
+            if (typeof(record) == 'number') record = {id:record};
+            return obj.bridge.deleteRecord(record);
         };
         this.save = function (record) {
-            obj.bridge.saveRecord(record);
+            return obj.bridge.saveRecord(record);
         };
         this.find = function (criteria) {
             if (typeof(criteria) == 'function') {
-                obj.bridge.findByLogicCriteria(criteria);
+                return obj.bridge.findByLogicCriteria(criteria);
             } else if (criteria instanceof Object) {
-                obj.bridge.findByMapCriteria(criteria);
+                return obj.bridge.findByMapCriteria(criteria);
             }
         };
         this.findAll = function (criteria) {
             if (typeof(criteria) == 'function') {
-                obj.bridge.findAllByLogicCriteria(criteria);
+                return obj.bridge.findAllByLogicCriteria(criteria);
             } else if (criteria instanceof Object) {
-                obj.bridge.findAllByMapCriteria(criteria);
+                return obj.bridge.findAllByMapCriteria(criteria);
             }
+        };
+        this.delAll = function (criteria) {
+            var res = obj.findAll(criteria);
+            res.each(function () {
+                obj.del(this);
+            });
+            return res;
+        };
+        this.saveAll = function (objectArray) {
+            objectArray.each(function () {
+                obj.save(this)
+            });
+            return objectArray;
+        };
+        this.updateAll = function (criteria, updateCriteria) {
+            var list = obj.findAll(criteria);
+            list.each(function () {
+                obj.save(yoFramework.curry(updateCriteria, this)())
+            });
+            return list;
         };
     },
     init:function () {
         yo = yoFramework;
         yoFramework.iterators.bind();
         window.onload = function () {
+            window.log = new yoFramework.Logger();
             window.reportError = yoFramework.reportError;
             window.ScreenAreaProvider = yoFramework.ScreenAreaProvider;
             window.resizeMonitor = yoFramework.resizeMonitor;
